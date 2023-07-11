@@ -41,6 +41,7 @@ class HomeController extends Controller
                 AND user_room_tujuan.room_id = room.room_id
                 LIMIT 1) as profile_img "),
             \DB::raw(" (SELECT isi FROM chat WHERE chat.room_id = room.room_id ORDER BY chat_id DESC LIMIT 1) as last_chat "),
+            \DB::raw(" (SELECT file FROM chat WHERE chat.room_id = room.room_id ORDER BY chat_id DESC LIMIT 1) as last_file "),
             \DB::raw(" (SELECT date_created FROM chat WHERE chat.room_id = room.room_id ORDER BY chat_id DESC LIMIT 1) as last_date_created ")
         )
         ->join("user_room as room_users_sql","room_users_sql.room_id","=","room.room_id")
@@ -75,6 +76,11 @@ class HomeController extends Controller
         $chats  = \DB::table("chat")->where("room_id",$room_id)->get();
         $user_id    = $user_login->user_id;
 
+        foreach ($chats as $key => $chat) {
+            $file    = !empty($chat->file) ? url("/uploads/".$chat->file) : null;
+            $chats[$key]->file = $file;
+        }
+
         $data   = [
             "chats"     => $chats,
             "user_id"     => $user_id,
@@ -85,8 +91,11 @@ class HomeController extends Controller
         $status     = "";
         $message     = "";
 
+        $user_login     = \Helper::getUserLogin($request->token);
+
+
         $file = $request->file('file');
-        $user_id    = \Auth::user()->user_id;
+        $user_id    = $user_login->user_id;
         $path       = "uploads";
 
         $new_name   = "profile_img_".$user_id."_".time().".".$file->getClientOriginalExtension();

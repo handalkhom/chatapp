@@ -1,6 +1,11 @@
 import React, { useEffect } from "react";
-import { UserOutlined, DeleteOutlined, SendOutlined } from "@ant-design/icons";
-import type { MenuProps } from "antd";
+import {
+    UserOutlined,
+    DeleteOutlined,
+    SendOutlined,
+    PictureOutlined,
+} from "@ant-design/icons";
+import { MenuProps, Modal } from "antd";
 import axios from "axios";
 import Cookies from "universal-cookie";
 import {
@@ -40,61 +45,73 @@ const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     console.log("click left button", e);
 };
 
-const handleMenuClick: MenuProps["onClick"] = (e) => {
-    message.info("Click on menu item.");
-    console.log("click", e);
-};
-
-const items: MenuProps["items"] = [
-    {
-        label: (
-            <Avatar
-                size={{
-                    xs: 24,
-                    sm: 32,
-                    md: 40,
-                    lg: 64,
-                    xl: 80,
-                    xxl: 100,
-                }}
-            />
-        ),
-        key: "1",
-    },
-    {
-        label: "Update Profile Picture",
-        key: "1",
-        icon: <UserOutlined />,
-    },
-    {
-        label: "Chat Baru",
-        key: "2",
-        icon: <UserOutlined />,
-    },
-    {
-        label: "Logout",
-        key: "3",
-        icon: <UserOutlined />,
-        danger: true,
-    },
-];
-
-const menuProps = {
-    items,
-    onClick: handleMenuClick,
-};
-
 const { Header, Content, Footer, Sider } = Layout;
 
-const simulateClick = (e) => {
-    e.click();
-};
+const Dashboard: React.FC = () => {
+    const {
+        token: { colorBgContainer },
+    } = theme.useToken();
 
-const [recentMessageArr, setRecentMessageArr] = React.useState([]);
+    const [recentMessageArr, setRecentMessageArr] = React.useState([]);
+    const [isFirstLoad, setIsFirstLoad] = React.useState(true);
+    const [chatArr, setChatArr] = React.useState([]);
+    const [userId, setUserId] = React.useState(0);
+    const [roomActiveId, setRoomActiveId] = React.useState(0);
+    const [isModalProfileImageShow, setIsModalProfileImageShow] =
+        React.useState(false);
 
-function recentMessage(search = "") {
-    useEffect(() => {
-        const room_id = 1;
+    const handleMenuClick: MenuProps["onClick"] = (e) => {
+        // message.info("Click on menu item.");
+        if (e.key == 3) {
+            cookies.remove("token_login");
+            document.location.href = "/";
+        } else if (e.key == 2) {
+            setIsModalProfileImageShow(true);
+        }
+    };
+
+    const items: MenuProps["items"] = [
+        {
+            label: (
+                <Avatar
+                    size={{
+                        xs: 24,
+                        sm: 32,
+                        md: 40,
+                        lg: 64,
+                        xl: 80,
+                        xxl: 100,
+                    }}
+                />
+            ),
+            key: "0",
+        },
+        {
+            label: "Update Profile Picture",
+            key: "1",
+            icon: <UserOutlined />,
+        },
+        {
+            label: "Chat Baru",
+            key: "2",
+            icon: <UserOutlined />,
+        },
+        {
+            label: "Logout",
+            key: "3",
+            icon: <UserOutlined />,
+            danger: true,
+        },
+    ];
+
+    const menuProps = {
+        items,
+        onClick: handleMenuClick,
+    };
+
+    const recentMessage = (search = "") => {
+        // useEffect(() => {
+        setIsFirstLoad(false);
         const token = cookies.get("token_login");
         let url = "";
         if (search != "") {
@@ -107,29 +124,117 @@ function recentMessage(search = "") {
             // console.log(result);
             setRecentMessageArr(result.data);
         });
-    });
-}
+        // });
+    };
+    if (isFirstLoad) {
+        recentMessage();
+    }
 
-recentMessage();
+    const chatHistory = (room_id, el = "") => {
+        // useEffect(() => {
+        const token = cookies.get("token_login");
 
-const [chatArr, setChatArr] = React.useState([]);
+        document.querySelector("header").style.display = "block";
+        document.querySelector("footer").style.display = "block";
 
-function chatHistory(room_id) {
-    // useEffect(() => {
-    const token = cookies.get("token_login");
+        if (el != "") {
+            const parent = el.target.closest("li");
 
-    axios
-        .get(`${host}/api/chathistory?token=${token}&room_id=${room_id}`)
-        .then(function (result) {
-            setChatArr(result.data.chats);
+            const srcImage = parent.querySelector(".avatar img").src;
+            document.querySelector("header .avatar img").src = srcImage;
+
+            const nama_kontak = parent.querySelector(".nama_kontak").innerHTML;
+            document.querySelector("header .nama_kontak").innerHTML =
+                nama_kontak;
+        }
+
+        setRoomActiveId(room_id);
+
+        axios
+            .get(`${host}/api/chathistory?token=${token}&room_id=${room_id}`)
+            .then(function (result) {
+                setChatArr(result.data.chats);
+                setUserId(result.data.user_id);
+                setTimeout(() => {
+                    document.getElementById("input-chat").value = "";
+                }, 500);
+            });
+        // });
+    };
+
+    const deleteChat = (chat_id, room_id) => {
+        if (confirm("Hapus pesan ini ?")) {
+            const token = cookies.get("token_login");
+            const url = `${host}/api/hapus_pesan`;
+            const data = {
+                token: token,
+                chat_id: chat_id,
+            };
+
+            axios.post(url, data).then(function (result) {
+                let data = result.data;
+                if (data.status == "success") {
+                    chatHistory(room_id);
+                } else {
+                    message.error(data.message);
+                }
+            });
+        }
+    };
+
+    const sendChat = () => {
+        const chat = document.getElementById("input-chat").value;
+
+        const token = cookies.get("token_login");
+        const url = `${host}/api/kirim_pesan`;
+        const data = {
+            token: token,
+            chat: chat,
+            room_id: roomActiveId,
+        };
+
+        axios.post(url, data).then(function (result) {
+            let data = result.data;
+            if (data.status == "success") {
+                chatHistory(roomActiveId);
+                setTimeout(() => {
+                    document.getElementById("input-chat").value = "";
+                }, 500);
+            } else {
+                message.error(data.message);
+            }
         });
-    // });
-}
+    };
 
-const Dashboard: React.FC = () => {
-    const {
-        token: { colorBgContainer },
-    } = theme.useToken();
+    const sendFile = () => {
+        const file = document.getElementById("send-file").files[0];
+
+        const token = cookies.get("token_login");
+        const url = `${host}/api/kirim_file`;
+        const data = {
+            token: token,
+            file: file,
+            room_id: roomActiveId,
+        };
+        const config = {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+            body: "binaryData",
+        };
+
+        axios.post(url, data, config).then(function (result) {
+            let data = result.data;
+            if (data.status == "success") {
+                chatHistory(roomActiveId);
+                setTimeout(() => {
+                    document.getElementById("input-chat").value = "";
+                }, 500);
+            } else {
+                message.error(data.message);
+            }
+        });
+    };
 
     return (
         <Layout style={{ minHeight: "100vh" }}>
@@ -142,7 +247,12 @@ const Dashboard: React.FC = () => {
             >
                 <Layout style={{ padding: "16px" }}>
                     <Space.Compact style={{ width: "100%" }}>
-                        <Input defaultValue=" " />
+                        <Input
+                            defaultValue=" "
+                            onKeyUp={(e) => {
+                                recentMessage(e.target.value);
+                            }}
+                        />
                         <Dropdown menu={menuProps}>
                             <Button icon={<UserOutlined />} />
                         </Dropdown>
@@ -154,20 +264,36 @@ const Dashboard: React.FC = () => {
                     renderItem={(item, index) => (
                         <List.Item
                             data-id={item.room_id}
-                            ref={simulateClick}
-                            onClick={() => chatHistory(item.room_id)}
+                            onClick={(e) => chatHistory(item.room_id, e)}
                             className="item_recent_message"
                         >
                             <List.Item.Meta
-                                avatar={<Avatar src={item.profile_img} />}
+                                avatar={
+                                    <Avatar
+                                        className="avatar"
+                                        src={item.profile_img}
+                                    />
+                                }
                                 title={
-                                    <div style={{ textAlign: "left" }}>
+                                    <div
+                                        className="nama_kontak"
+                                        style={{ textAlign: "left" }}
+                                    >
                                         {item.nama_kontak}
                                     </div>
                                 }
                                 description={
                                     <div style={{ textAlign: "left" }}>
-                                        {item.last_chat}
+                                        {item.last_file != null &&
+                                        item.last_chat == null ? (
+                                            <span
+                                                style={{ fontStyle: "italic" }}
+                                            >
+                                                file
+                                            </span>
+                                        ) : (
+                                            <span>{item.last_chat}</span>
+                                        )}
                                     </div>
                                 }
                             />
@@ -202,12 +328,15 @@ const Dashboard: React.FC = () => {
                         background: colorBgContainer,
                         textAlign: "left",
                         paddingLeft: "20px",
+                        display: "none",
                     }}
                 >
                     <Avatar
+                        className="avatar"
                         src={`https://xsgames.co/randomusers/avatar.php?g=pixel&key=1`}
                     />
                     <span
+                        className="nama_kontak"
                         style={{
                             marginLeft: "10px",
                         }}
@@ -233,7 +362,7 @@ const Dashboard: React.FC = () => {
                     {chatArr.map((chat, index) => {
                         return (
                             <div data-id={chat.chat_id}>
-                                {chat.pengirim_id == 1 ? (
+                                {chat.pengirim_id != userId ? (
                                     <Row>
                                         <Col
                                             span={20}
@@ -258,7 +387,35 @@ const Dashboard: React.FC = () => {
                                                         display: "block",
                                                     }}
                                                 >
-                                                    {chat.isi}
+                                                    {chat.file != null ? (
+                                                        <img
+                                                            src={chat.file}
+                                                            alt=""
+                                                            style={{
+                                                                width: 200,
+                                                                height: 200,
+                                                                objectFit:
+                                                                    "cover",
+                                                                objectPosition:
+                                                                    "center",
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span></span>
+                                                    )}
+
+                                                    {chat.isi != null ? (
+                                                        <span
+                                                            style={{
+                                                                display:
+                                                                    "block",
+                                                            }}
+                                                        >
+                                                            {chat.isi}
+                                                        </span>
+                                                    ) : (
+                                                        <span></span>
+                                                    )}
                                                 </span>
                                                 <small
                                                     style={{
@@ -300,7 +457,35 @@ const Dashboard: React.FC = () => {
                                                         display: "block",
                                                     }}
                                                 >
-                                                    {chat.isi}
+                                                    {chat.file != null ? (
+                                                        <img
+                                                            src={chat.file}
+                                                            alt=""
+                                                            style={{
+                                                                width: 200,
+                                                                height: 200,
+                                                                objectFit:
+                                                                    "cover",
+                                                                objectPosition:
+                                                                    "center",
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span></span>
+                                                    )}
+
+                                                    {chat.isi != null ? (
+                                                        <span
+                                                            style={{
+                                                                display:
+                                                                    "block",
+                                                            }}
+                                                        >
+                                                            {chat.isi}
+                                                        </span>
+                                                    ) : (
+                                                        <span></span>
+                                                    )}
                                                 </span>
                                                 <small
                                                     style={{
@@ -313,7 +498,15 @@ const Dashboard: React.FC = () => {
                                                     {chat.date_created}
                                                 </small>
                                             </div>
-                                            <Button icon={<DeleteOutlined />} />
+                                            <Button
+                                                icon={<DeleteOutlined />}
+                                                onClick={() =>
+                                                    deleteChat(
+                                                        chat.chat_id,
+                                                        chat.room_id
+                                                    )
+                                                }
+                                            />
                                         </Col>
                                     </Row>
                                 )}
@@ -321,13 +514,55 @@ const Dashboard: React.FC = () => {
                         );
                     })}
                 </Content>
-                <Footer style={{ textAlign: "center" }}>
+                <Footer style={{ textAlign: "center", display: "none" }}>
                     <Space.Compact style={{ width: "100%" }}>
-                        <Input placeholder="Ketik pesan" />;
-                        <Button icon={<SendOutlined />} />
+                        <Input
+                            placeholder="Ketik pesan"
+                            id="input-chat"
+                            onKeyUp={(e) => {
+                                if (e.keyCode == 13) {
+                                    document
+                                        .getElementById("send-chat")
+                                        .click();
+                                }
+                            }}
+                        />
+                        <Input
+                            id="send-file"
+                            type="file"
+                            style={{ display: "none" }}
+                            onChange={() => {
+                                sendFile();
+                            }}
+                        />
+                        <Button
+                            icon={<PictureOutlined />}
+                            onClick={() => {
+                                document.getElementById("send-file").click();
+                            }}
+                        />
+                        <Button
+                            icon={<SendOutlined />}
+                            id="send-chat"
+                            onClick={() => {
+                                sendChat();
+                            }}
+                        />
                     </Space.Compact>
                 </Footer>
             </Layout>
+            <Modal
+                title="Chat Baru"
+                open={isModalProfileImageShow}
+                onOk={() => {
+                    setIsModalProfileImageShow(false);
+                }}
+                onCancel={() => {
+                    setIsModalProfileImageShow(false);
+                }}
+            >
+                <Form></Form>
+            </Modal>
         </Layout>
     );
 };

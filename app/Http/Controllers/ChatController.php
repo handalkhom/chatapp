@@ -10,12 +10,14 @@ class ChatController extends Controller
     //
 
     function kirim_pesan(Request $request) {
+        $user_login     = \Helper::getUserLogin($request->token);
+
         $status     = "";
         $message     = "";
 
         $chat = $request->chat;
         $room_id    = $request->room_id;
-        $pengirim_id    = \Auth::user()->user_id;
+        $pengirim_id    = $user_login->user_id;
 
         $data_insert    = [
             "isi"   => $chat,
@@ -41,12 +43,14 @@ class ChatController extends Controller
     }
 
     function kirim_file(Request $request) {
+        $user_login     = \Helper::getUserLogin($request->token);
+
         $status     = "";
         $message     = "";
 
         $file = $request->file('file');
         $room_id    = $request->room_id;
-        $pengirim_id    = \Auth::user()->user_id;
+        $pengirim_id    = $user_login->user_id;
 
         $new_name   = "file_".$room_id."_".$pengirim_id."_".time().".".$file->getClientOriginalExtension();
         $file->move("uploads",$new_name);
@@ -75,13 +79,15 @@ class ChatController extends Controller
     }
 
     function new_chat(Request $request) {
+        $user_login     = \Helper::getUserLogin($request->token);
+
         $status     = "";
         $message     = "";
 
         $chat           = $request->chat;
         $file           = $request->file('file');
         $penerima_id    = $request->penerima_id;
-        $pengirim_id    = \Auth::user()->user_id;
+        $pengirim_id    = $user_login->user_id;
 
 
         // check user room apa sudah pernah chat
@@ -142,11 +148,13 @@ class ChatController extends Controller
     }
 
     function hapus_pesan(Request $request) {
+        $user_login     = \Helper::getUserLogin($request->token);
+
         $status     = "";
         $message     = "";
 
         $chat_id    = $request->chat_id;
-        $pengirim_id    = \Auth::user()->user_id;
+        $pengirim_id    = $user_login->user_id;
 
         $delete     = \DB::table("chat")->where("chat_id",$chat_id)->delete();
         if($delete){
